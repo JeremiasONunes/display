@@ -15,8 +15,8 @@ int opcaoSelecionada = 0;
 bool opcaoConfirmada = false;
 
 // Opções de tempo (5 min, 10 min, 20 min) e seus tempos em segundos
-const char* opcoes[] = {" 5 min ", " 10 min", " 20 min"};
-unsigned long tempos[] = {5 * 60, 10 * 60, 20 * 60}; // Tempo em segundos
+const char* opcoes[] = {" 10 min ", " 15 min", " 20 min"};
+unsigned long tempos[] = {10 * 60, 15 * 60, 20 * 60}; // Tempo em segundos
 
 void setup() {
     pinMode(X_JOYSTICK, INPUT);      // Pino do joystick
@@ -30,7 +30,7 @@ void setup() {
 void exibirMensagemConfirmacao() {
     u8g2.clearBuffer();
     char mensagem[30];
-    snprintf(mensagem, sizeof(mensagem), "%s selecionada", opcoes[opcaoSelecionada]);
+    snprintf(mensagem, sizeof(mensagem), "%s selecionado", opcoes[opcaoSelecionada]);
     int16_t x = (128 - u8g2.getStrWidth(mensagem)) / 2;
     int16_t y = 32;
     u8g2.drawStr(x, y, mensagem);
@@ -114,29 +114,28 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
         }
 
         // Atualiza o display e decrementa o tempo se não estiver pausado
-if (!pausado) {
-    int minutos = tempoRestante / 60;
-    int segundos = tempoRestante % 60;
+        if (!pausado) {
+            int minutos = tempoRestante / 60;
+            int segundos = tempoRestante % 60;
 
-    u8g2.clearBuffer();
-    
-    // Configura a fonte para o cronômetro (fonte grande)
-    u8g2.setFont(u8g2_font_fub30_tr); // Substitua pela fonte grande que você estiver usando
-    char contador[16];
-    snprintf(contador, sizeof(contador), "%02d:%02d", minutos, segundos);
-    int16_t x = (128 - u8g2.getStrWidth(contador)) / 2;
-    int16_t y = 40;
-    u8g2.drawStr(x, y, contador);
-    
-    // Configura a fonte para o texto pequeno
-    u8g2.setFont(u8g2_font_6x10_tr); // Substitua por uma fonte pequena adequada
-    const char* textoPequeno = "press 1 secs pause";
-    int16_t xTexto = (128 - u8g2.getStrWidth(textoPequeno)) / 2;
-    int16_t yTexto = y + 20; // Posição abaixo do cronômetro
-    u8g2.drawStr(xTexto, yTexto, textoPequeno);
-
-    u8g2.sendBuffer();
-}
+             u8g2.clearBuffer();
+            
+            // Configura a fonte para o cronômetro (fonte grande)
+            u8g2.setFont(u8g2_font_fub30_tr); // Substitua pela fonte grande que você estiver usando
+            char contador[16];
+            snprintf(contador, sizeof(contador), "%02d:%02d", minutos, segundos);
+            int16_t x = (128 - u8g2.getStrWidth(contador)) / 2;
+            int16_t y = 40;
+            u8g2.drawStr(x, y, contador);
+            
+            // Configura a fonte para o texto pequeno
+            u8g2.setFont(u8g2_font_6x10_tr); // Substitua por uma fonte pequena adequada
+            const char* textoPequeno = "press 1 sec pause";
+            int16_t xTexto = (128 - u8g2.getStrWidth(textoPequeno)) / 2;
+            int16_t yTexto = y + 20; // Posição abaixo do cronômetro
+            u8g2.drawStr(xTexto, yTexto, textoPequeno);
+        
+            u8g2.sendBuffer();
 
             delay(1000); // Aguarda 1 segundo
             tempoRestante--;
