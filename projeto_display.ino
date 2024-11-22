@@ -85,7 +85,11 @@ int exibirMenuPausa() {
     return opcaoPausa;
 }
 
+// Variável global para acumular o tempo total cronometrado
+unsigned long tempoTotalCronometrado = 0; // Tempo total acumulado em segundos
+
 void iniciarContagemRegressiva(unsigned long tempoRestante) {
+    unsigned long tempoInicial = tempoRestante; // Salva o tempo inicial
     digitalWrite(LED_PIN, HIGH); // Liga o LED indicando início da contagem
     u8g2.setFont(u8g2_font_fub30_tr); // Configura uma fonte maior para o display
 
@@ -99,7 +103,6 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
         if (pausado) {
             int escolha = exibirMenuPausa(); // Mostra o menu de pausa
             
-            
             if (escolha == 0) { // Continuar
                 pausado = false;
                 u8g2.setFont(u8g2_font_fub30_tr); // Configura uma fonte maior para o display
@@ -108,20 +111,20 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
                 digitalWrite(LED_PIN, LOW); // Desliga o LED ao término da contagem
                 u8g2.setFont(u8g2_font_6x10_tr); // Retorna para a fonte menor
                 opcaoConfirmada = false; // Reseta o estado de confirmação
-                tempoRestante = 0;
-                exibirMenu();
+                break; // Sai do loop de contagem
             }
         }
 
         // Atualiza o display e decrementa o tempo se não estiver pausado
         if (!pausado) {
+            
             int minutos = tempoRestante / 60;
             int segundos = tempoRestante % 60;
 
-             u8g2.clearBuffer();
+            u8g2.clearBuffer();
             
             // Configura a fonte para o cronômetro (fonte grande)
-            u8g2.setFont(u8g2_font_fub30_tr); // Substitua pela fonte grande que você estiver usando
+            u8g2.setFont(u8g2_font_fub30_tr); // Configura uma fonte maior para o display
             char contador[16];
             snprintf(contador, sizeof(contador), "%02d:%02d", minutos, segundos);
             int16_t x = (128 - u8g2.getStrWidth(contador)) / 2;
@@ -129,7 +132,7 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
             u8g2.drawStr(x, y, contador);
             
             // Configura a fonte para o texto pequeno
-            u8g2.setFont(u8g2_font_6x10_tr); // Substitua por uma fonte pequena adequada
+            u8g2.setFont(u8g2_font_6x10_tr);
             const char* textoPequeno = "press 1 sec pause";
             int16_t xTexto = (128 - u8g2.getStrWidth(textoPequeno)) / 2;
             int16_t yTexto = y + 20; // Posição abaixo do cronômetro
@@ -142,6 +145,9 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
         }
     }
 
+    // Atualiza o tempo total cronometrado
+    tempoTotalCronometrado += (tempoInicial - tempoRestante);
+
     digitalWrite(LED_PIN, LOW); // Desliga o LED ao término da contagem
     u8g2.setFont(u8g2_font_6x10_tr); // Retorna para a fonte menor
     opcaoConfirmada = false; // Reseta o estado de confirmação
@@ -149,6 +155,8 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
 
 void exibirMenu() {
     u8g2.clearBuffer();
+
+    // Exibe as opções no menu
     for (int i = 0; i < 3; i++) {
         if (i == opcaoSelecionada) {
             u8g2.drawStr(0, 20 + i * 20, "[x]");
@@ -157,6 +165,18 @@ void exibirMenu() {
         }
         u8g2.drawStr(16, 20 + i * 20, opcoes[i]);
     }
+// Calcula e exibe o tempo total no canto superior direito
+int horasTotais = tempoTotalCronometrado / 3600;           // Calcula as horas
+int minutosTotais = (tempoTotalCronometrado % 3600) / 60;  // Calcula os minutos restantes
+int segundosTotais = tempoTotalCronometrado % 60;          // Calcula os segundos restantes
+
+char tempoTotal[16];
+snprintf(tempoTotal, sizeof(tempoTotal), "tempo %02d:%02d:%02d", horasTotais, minutosTotais, segundosTotais);
+
+int16_t x = 128 - u8g2.getStrWidth(tempoTotal) - 2; // Posiciona no canto superior direito
+int16_t y = 10; // Posição no topo
+u8g2.drawStr(x, y, tempoTotal);
+
     u8g2.sendBuffer();
 }
 
