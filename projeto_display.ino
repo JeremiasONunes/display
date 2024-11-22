@@ -3,61 +3,144 @@
 #include <U8g2lib.h>
 
 // Definição dos pinos
-#define X_JOYSTICK A0     // Pino analógico para o eixo X do joystick
-#define BOTAO 2           // Pino digital para o botão de seleção
-#define LED_PIN 9         // Pino digital para o LED indicador
+#define X_JOYSTICK A0     // Pino analógico para joystick
+#define BOTAO 2           // Pino do botão para selecionar/pausar
+#define LED_PIN 9         // Pino do LED
 
-// Configuração do display (U8G2 com protocolo SPI)
+// Configuração do display
 U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R2, 13, 11, 10, U8X8_PIN_NONE);
 
 // Variáveis de navegação e seleção
-int opcaoSelecionada = 0;        // Índice da opção selecionada no menu
-bool opcaoConfirmada = false;    // Indica se uma opção foi confirmada
+int opcaoSelecionada = 0;
+bool opcaoConfirmada = false;
 
-// Definição das opções e seus tempos correspondentes em segundos
-const char* opcoes[] = {" 5 min ", " 10 min", " 20 min"}; // Opções do menu
-unsigned long tempos[] = {5 * 60, 10 * 60, 20 * 60};      // Tempos em segundos (300s, 600s, 1200s)
+// Opções de tempo (5 min, 10 min, 20 min) e seus tempos em segundos
+const char* opcoes[] = {" 5 min ", " 10 min", " 20 min"};
+unsigned long tempos[] = {5 * 60, 10 * 60, 20 * 60}; // Tempo em segundos
 
 void setup() {
-    pinMode(X_JOYSTICK, INPUT);      // Configura o pino do joystick como entrada
-    pinMode(BOTAO, INPUT_PULLUP);   // Configura o pino do botão como entrada com resistor pull-up
-    pinMode(LED_PIN, OUTPUT);       // Configura o pino do LED como saída
-    Serial.begin(115200);           // Inicializa a comunicação serial para depuração
-    u8g2.begin();                   // Inicializa o display
-    u8g2.setFont(u8g2_font_6x10_tr); // Configura a fonte do display
+    pinMode(X_JOYSTICK, INPUT);      // Pino do joystick
+    pinMode(BOTAO, INPUT_PULLUP);    // Pino do botão com pull-up
+    pinMode(LED_PIN, OUTPUT);        // Pino do LED
+    Serial.begin(115200);
+    u8g2.begin();
+    u8g2.setFont(u8g2_font_6x10_tr); // Define fonte pequena como padrão
 }
 
-// Função para exibir uma mensagem de confirmação no display
 void exibirMensagemConfirmacao() {
-    u8g2.clearBuffer(); // Limpa o buffer do display
+    u8g2.clearBuffer();
     char mensagem[30];
     snprintf(mensagem, sizeof(mensagem), "%s selecionada", opcoes[opcaoSelecionada]);
-    int16_t x = (128 - u8g2.getStrWidth(mensagem)) / 2; // Calcula a posição centralizada no eixo X
-    int16_t y = 32; // Posição no eixo Y
-    u8g2.drawStr(x, y, mensagem); // Exibe a mensagem no display
-    u8g2.sendBuffer(); // Envia o buffer para o display
-    delay(2000); // Aguarda 2 segundos para que a mensagem seja visível
+    int16_t x = (128 - u8g2.getStrWidth(mensagem)) / 2;
+    int16_t y = 32;
+    u8g2.drawStr(x, y, mensagem);
+    u8g2.sendBuffer();
+    delay(2000);
 }
 
-// Função para iniciar a contagem regressiva e exibir no display
+int exibirMenuPausa() {
+    int opcaoPausa = 0;
+    bool escolhaConfirmada = false;
+    digitalWrite(LED_PIN, LOW); // Desliga o LED ao término da contagem
+    delay(400);
+    while (!escolhaConfirmada) {
+        u8g2.setFont(u8g2_font_6x10_tr); // Define fonte pequena como padrão
+        u8g2.clearBuffer();
+
+        // Exibe as opções no menu de pausa
+        for (int i = 0; i < 2; i++) {
+            if (i == opcaoPausa) {
+                u8g2.drawStr(0, 20 + i * 20, "[x]");
+            } else {
+                u8g2.drawStr(0, 20 + i * 20, "[ ]");
+            }
+            const char* opcoesPausa[] = {" Continuar", " Parar"};
+            u8g2.drawStr(16, 20 + i * 20, opcoesPausa[i]);
+        }
+
+        u8g2.sendBuffer();
+
+        // Leitura do joystick para navegação
+        int leituraJoystick = analogRead(X_JOYSTICK);
+
+        if (leituraJoystick < 400) { // Movimento para cima
+            if (opcaoPausa > 0) {
+                opcaoPausa--;
+                delay(200); // Debounce
+            }
+        } else if (leituraJoystick > 600) { // Movimento para baixo
+            if (opcaoPausa < 1) {
+                opcaoPausa++;
+                delay(200); // Debounce
+            }
+        }
+
+        // Confirmação da escolha
+        if (digitalRead(BOTAO) == LOW) {
+            escolhaConfirmada = true;
+            delay(300); // Debounce do botão
+        }
+    }
+
+    return opcaoPausa;
+}
+
 void iniciarContagemRegressiva(unsigned long tempoRestante) {
     digitalWrite(LED_PIN, HIGH); // Liga o LED indicando início da contagem
     u8g2.setFont(u8g2_font_fub30_tr); // Configura uma fonte maior para o display
 
+    bool pausado = false; // Variável para controlar a pausa
+
     while (tempoRestante > 0) {
-        int minutos = tempoRestante / 60; // Converte segundos restantes para minutos
-        int segundos = tempoRestante % 60; // Obtém os segundos restantes
+        if (digitalRead(BOTAO) == LOW) { // Verifica se o botão foi pressionado
+            pausado = true;              // Entra no estado de pausa
+        }
 
-        u8g2.clearBuffer(); // Limpa o buffer do display
-        char contador[16];
-        snprintf(contador, sizeof(contador), "%02d:%02d", minutos, segundos); // Formata o tempo em "MM:SS"
-        int16_t x = (128 - u8g2.getStrWidth(contador)) / 2; // Centraliza o texto no eixo X
-        int16_t y = 40; // Define a posição Y
-        u8g2.drawStr(x, y, contador); // Exibe o contador no display
-        u8g2.sendBuffer(); // Atualiza o display
+        if (pausado) {
+            int escolha = exibirMenuPausa(); // Mostra o menu de pausa
+            
+            
+            if (escolha == 0) { // Continuar
+                pausado = false;
+                u8g2.setFont(u8g2_font_fub30_tr); // Configura uma fonte maior para o display
+                digitalWrite(LED_PIN, HIGH); // Liga o LED indicando início da contagem
+            } else if (escolha == 1) { // Parar
+                digitalWrite(LED_PIN, LOW); // Desliga o LED ao término da contagem
+                u8g2.setFont(u8g2_font_6x10_tr); // Retorna para a fonte menor
+                opcaoConfirmada = false; // Reseta o estado de confirmação
+                tempoRestante = 0;
+                exibirMenu();
+            }
+        }
 
-        delay(1000); // Aguarda 1 segundo
-        tempoRestante--; // Reduz o tempo restante
+        // Atualiza o display e decrementa o tempo se não estiver pausado
+if (!pausado) {
+    int minutos = tempoRestante / 60;
+    int segundos = tempoRestante % 60;
+
+    u8g2.clearBuffer();
+    
+    // Configura a fonte para o cronômetro (fonte grande)
+    u8g2.setFont(u8g2_font_fub30_tr); // Substitua pela fonte grande que você estiver usando
+    char contador[16];
+    snprintf(contador, sizeof(contador), "%02d:%02d", minutos, segundos);
+    int16_t x = (128 - u8g2.getStrWidth(contador)) / 2;
+    int16_t y = 40;
+    u8g2.drawStr(x, y, contador);
+    
+    // Configura a fonte para o texto pequeno
+    u8g2.setFont(u8g2_font_6x10_tr); // Substitua por uma fonte pequena adequada
+    const char* textoPequeno = "press 1 secs pause";
+    int16_t xTexto = (128 - u8g2.getStrWidth(textoPequeno)) / 2;
+    int16_t yTexto = y + 20; // Posição abaixo do cronômetro
+    u8g2.drawStr(xTexto, yTexto, textoPequeno);
+
+    u8g2.sendBuffer();
+}
+
+            delay(1000); // Aguarda 1 segundo
+            tempoRestante--;
+        }
     }
 
     digitalWrite(LED_PIN, LOW); // Desliga o LED ao término da contagem
@@ -65,51 +148,49 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
     opcaoConfirmada = false; // Reseta o estado de confirmação
 }
 
-// Função para exibir o menu com as opções
 void exibirMenu() {
-    u8g2.clearBuffer(); // Limpa o buffer do display
-    for (int i = 0; i < 3; i++) { // Itera pelas opções do menu
-        if (i == opcaoSelecionada) { // Destaca a opção atualmente selecionada
-            u8g2.drawStr(0, 20 + i * 20, "[x]"); // Marcação para a opção selecionada
+    u8g2.clearBuffer();
+    for (int i = 0; i < 3; i++) {
+        if (i == opcaoSelecionada) {
+            u8g2.drawStr(0, 20 + i * 20, "[x]");
         } else {
-            u8g2.drawStr(0, 20 + i * 20, "[ ]"); // Opção não selecionada
+            u8g2.drawStr(0, 20 + i * 20, "[ ]");
         }
-        u8g2.drawStr(16, 20 + i * 20, opcoes[i]); // Exibe o texto da opção
+        u8g2.drawStr(16, 20 + i * 20, opcoes[i]);
     }
-    u8g2.sendBuffer(); // Atualiza o display
+    u8g2.sendBuffer();
 }
 
-// Função para navegar pelas opções utilizando o joystick
 void navegarOpcoes() {
-    int leituraJoystick = analogRead(X_JOYSTICK); // Lê o valor do eixo X do joystick
+    int leituraJoystick = analogRead(X_JOYSTICK);
 
     if (leituraJoystick < 400) { // Movimento para cima
-        if (opcaoSelecionada > 0) { // Verifica limites superiores
-            opcaoSelecionada--; // Move para a opção anterior
-            delay(200); // Delay para debounce
+        if (opcaoSelecionada > 0) {
+            opcaoSelecionada--;
+            delay(200); // Debounce
         }
     } else if (leituraJoystick > 600) { // Movimento para baixo
-        if (opcaoSelecionada < 2) { // Verifica limites inferiores
-            opcaoSelecionada++; // Move para a próxima opção
-            delay(200); // Delay para debounce
+        if (opcaoSelecionada < 2) {
+            opcaoSelecionada++;
+            delay(200); // Debounce
         }
     }
 
-    exibirMenu(); // Atualiza o menu no display
+    exibirMenu();
 }
 
 void loop() {
-    if (digitalRead(BOTAO) == LOW) { // Verifica se o botão foi pressionado
-        opcaoConfirmada = true; // Marca a opção como confirmada
-        delay(200); // Delay para debounce
+    if (digitalRead(BOTAO) == LOW) {
+        opcaoConfirmada = true;
+        delay(200);
     }
 
     if (opcaoConfirmada) {
-        exibirMensagemConfirmacao(); // Exibe a mensagem de confirmação
-        iniciarContagemRegressiva(tempos[opcaoSelecionada]); // Inicia a contagem regressiva
+        exibirMensagemConfirmacao();      
+        iniciarContagemRegressiva(tempos[opcaoSelecionada]);
     } else {
-        navegarOpcoes(); // Permite navegação no menu
+        navegarOpcoes();
     }
 
-    delay(100); // Delay para evitar leitura excessiva
+    delay(100);
 }
