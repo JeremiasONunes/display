@@ -18,14 +18,23 @@ bool opcaoConfirmada = false;
 const char* opcoes[] = {" 10 min ", " 15 min", " 20 min"};
 unsigned long tempos[] = {10 * 60, 15 * 60, 20 * 60}; // Tempo em segundos
 
-void setup() {
-    pinMode(X_JOYSTICK, INPUT);      // Pino do joystick
-    pinMode(BOTAO, INPUT_PULLUP);    // Pino do botão com pull-up
-    pinMode(LED_PIN, OUTPUT);        // Pino do LED
-    Serial.begin(115200);
-    u8g2.begin();
-    u8g2.setFont(u8g2_font_6x10_tr); // Define fonte pequena como padrão
+// Debounce do botão
+bool debounceBotao(int pinoBotao) {
+    static unsigned long ultimoTempo = 0;
+    static bool estadoAnterior = HIGH;
+    bool estadoAtual = digitalRead(pinoBotao);
+
+    if (estadoAtual == LOW && estadoAnterior == HIGH && millis() - ultimoTempo > 50) {
+        ultimoTempo = millis();
+        estadoAnterior = estadoAtual;
+        return true;
+    }
+    estadoAnterior = estadoAtual;
+    return false;
 }
+
+// Variável global para acumular o tempo total cronometrado
+unsigned long tempoTotalCronometrado = 0; // Tempo total acumulado em segundos
 
 void exibirMensagemConfirmacao() {
     u8g2.clearBuffer();
@@ -76,17 +85,13 @@ int exibirMenuPausa() {
         }
 
         // Confirmação da escolha
-        if (digitalRead(BOTAO) == LOW) {
+        if (debounceBotao(BOTAO)) {
             escolhaConfirmada = true;
-            delay(300); // Debounce do botão
         }
     }
 
     return opcaoPausa;
 }
-
-// Variável global para acumular o tempo total cronometrado
-unsigned long tempoTotalCronometrado = 0; // Tempo total acumulado em segundos
 
 void iniciarContagemRegressiva(unsigned long tempoRestante) {
     unsigned long tempoInicial = tempoRestante; // Salva o tempo inicial
@@ -153,32 +158,6 @@ void iniciarContagemRegressiva(unsigned long tempoRestante) {
     opcaoConfirmada = false; // Reseta o estado de confirmação
 }
 
-void exibirMenu() {
-    u8g2.clearBuffer();
-
-    // Exibe as opções no menu
-    for (int i = 0; i < 3; i++) {
-        if (i == opcaoSelecionada) {
-            u8g2.drawStr(0, 20 + i * 20, "[x]");
-        } else {
-            u8g2.drawStr(0, 20 + i * 20, "[ ]");
-        }
-        u8g2.drawStr(16, 20 + i * 20, opcoes[i]);
-    }
-// Calcula e exibe o tempo total no canto superior direito
-int horasTotais = tempoTotalCronometrado / 3600;           // Calcula as horas
-int minutosTotais = (tempoTotalCronometrado % 3600) / 60;  // Calcula os minutos restantes
-int segundosTotais = tempoTotalCronometrado % 60;          // Calcula os segundos restantes
-
-char tempoTotal[16];
-snprintf(tempoTotal, sizeof(tempoTotal), "tempo %02d:%02d:%02d", horasTotais, minutosTotais, segundosTotais);
-
-int16_t x = 128 - u8g2.getStrWidth(tempoTotal) - 2; // Posiciona no canto superior direito
-int16_t y = 10; // Posição no topo
-u8g2.drawStr(x, y, tempoTotal);
-
-    u8g2.sendBuffer();
-}
 
 void navegarOpcoes() {
     int leituraJoystick = analogRead(X_JOYSTICK);
@@ -198,18 +177,52 @@ void navegarOpcoes() {
     exibirMenu();
 }
 
-void loop() {
-    if (digitalRead(BOTAO) == LOW) {
-        opcaoConfirmada = true;
-        delay(200);
+void exibirMenu() {
+    u8g2.clearBuffer();
+
+    // Exibe as opções no menu
+    for (int i = 0; i < 3; i++) {
+        if (i == opcaoSelecionada) {
+            u8g2.drawStr(0, 20 + i * 20, "[x]");
+        } else {
+            u8g2.drawStr(0, 20 + i * 20, "[ ]");
+        }
+        u8g2.drawStr(16, 20 + i * 20, opcoes[i]);
     }
 
+    // Calcula e exibe o tempo total no canto superior direito
+    int horasTotais = tempoTotalCronometrado / 3600;           // Calcula as horas
+    int minutosTotais = (tempoTotalCronometrado % 3600) / 60;  // Calcula os minutos restantes
+    int segundosTotais = tempoTotalCronometrado % 60;          // Calcula os segundos restantes
+
+    char tempoTotal[16];
+    snprintf(tempoTotal, sizeof(tempoTotal), "tempo %02d:%02d:%02d", horasTotais, minutosTotais, segundosTotais);
+
+    int16_t x = 128 - u8g2.getStrWidth(tempoTotal) - 2; // Posiciona no canto superior direito
+    int16_t y = 10; // Posição no topo
+    u8g2.drawStr(x, y, tempoTotal);
+
+    u8g2.sendBuffer();
+}
+
+void setup() {
+    pinMode(X_JOYSTICK, INPUT);
+    pinMode(BOTAO, INPUT_PULLUP);
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+    u8g2.begin();
+    u8g2.setFont(u8g2_font_6x10_tr); // Define fonte menor como padrão
+}
+
+void loop() {
     if (opcaoConfirmada) {
-        exibirMensagemConfirmacao();      
         iniciarContagemRegressiva(tempos[opcaoSelecionada]);
     } else {
-        navegarOpcoes();
+        if (debounceBotao(BOTAO)) {
+            opcaoConfirmada = true;
+            exibirMensagemConfirmacao();
+        } else {
+            navegarOpcoes();
+        }
     }
-
-    delay(100);
 }
